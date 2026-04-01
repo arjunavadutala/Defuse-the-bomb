@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  ╔══════════════════════════════════════════════════════════╗
+  ║           D E F U S E   T H E   B O M B                 ║
+  ╠══════════════════════════════════════════════════════════╣
+  ║  HOW TO PLAY:                                            ║
+  ║  • Press START to begin — timer immediately counts down  ║
+  ║  • SCROLL (or drag on mobile) to move wires up/down      ║
+  ║  • Align the CORRECT wire with the center cutter line    ║
+  ║  • Press HOLD TO CUT (or hold Space) when aligned        ║
+  ║  • Cut the WRONG wire = instant explosion                ║
+  ║  • Timer hits 0 = explosion                              ║
+  ║  • The correct wire changes every round — stay sharp     ║
+  ║  HINT: Watch for the glow when you're close!             ║
+  ╚══════════════════════════════════════════════════════════╝
+-->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Defuse the Bomb</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #080b0f;
+  --panel:     #0d1117;
+  --border:    #1c2b1e;
+  --green:     #39ff14;
+  --red:       #ff2020;
+  --blue:      #00cfff;
+  --yellow:    #ffe135;
+  --orange:    #ff7b00;
+  --white:     #ddeedd;
+  --dim:       #2a3a2a;
+  --cut-line:  rgba(255,255,255,0.85);
+  --danger:    #ff2020;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'Share Tech Mono', monospace;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── CANVAS (explosion particles) ── */
+#fx-canvas {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* ── SCANLINES ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px, transparent 3px,
+    rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px
+  );
+  pointer-events: none;
+  z-index: 200;
+  opacity: 0.6;
+}
+
+/* ══════════════════════════════════
+   START SCREEN
+══════════════════════════════════ */
+#start-screen {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #0a1a0a 0%, #000 100%);
+  gap: 18px;
+  transition: opacity 0.6s;
+}
+
+.start-bomb-icon {
+  font-size: 80px;
+  animation: bomb-pulse 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 24px var(--red));
+}
+@keyframes bomb-pulse {
+  0%,100% { transform: scale(1); filter: drop-shadow(0 0 20px var(--red)); }
+  50%      { transform: scale(1.08); filter: drop-shadow(0 0 44px var(--red)) brightness(1.3); }
+}
+
+.start-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(28px, 6vw, 56px);
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: var(--green);
+  text-shadow: 0 0 30px var(--green), 0 0 60px rgba(57,255,20,0.4);
+  text-align: center;
+}
+
+.start-sub {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: clamp(13px, 2vw, 18px);
+  letter-spacing: 4px;
+  color: #556655;
+  text-transform: uppercase;
+}
+
+.difficulty-row {
+  display: flex; gap: 12px; margin-top: 10px;
+}
+
+.diff-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  padding: 8px 18px;
+  background: transparent;
+  border: 1px solid #2a4a2a;
+  color: #4a6a4a;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+.diff-btn:hover, .diff-btn.active {
+  border-color: var(--green);
+  color: var(--green);
+  text-shadow: 0 0 8px var(--green);
+  background: rgba(57,255,20,0.05);
+}
+
+#start-btn {
+  margin-top: 16px;
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 5px;
+  padding: 16px 48px;
+  background: transparent;
+  border: 2px solid var(--green);
+  color: var(--green);
+  cursor: pointer;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px var(--green);
+  box-shadow: 0 0 24px rgba(57,255,20,0.2), inset 0 0 24px rgba(57,255,20,0.05);
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+#start-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(57,255,20,0.1), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.4s;
+}
+#start-btn:hover::before { transform: translateX(100%); }
+#start-btn:hover {
+  background: rgba(57,255,20,0.08);
+  box-shadow: 0 0 40px rgba(57,255,20,0.4), inset 0 0 30px rgba(57,255,20,0.08);
+}
+#start-btn:active { transform: scale(0.97); }
+
+.start-hint {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #2a3a2a;
+  margin-top: 8px;
+}
+
+/* ══════════════════════════════════
+   GAME SCREEN
+══════════════════════════════════ */
+#game-screen {
+  position: fixed; inset: 0; z-index: 10;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* ── TOP BAR ── */
+#top-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px 12px;
+  border-bottom: 1px solid #111e11;
+  background: rgba(8,11,15,0.95);
+  backdrop-filter: blur(6px);
+  position: relative;
+  z-index: 20;
+}
+
+#timer-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  flex: 1;
+}
+#timer-label {
+  font-size: 9px; letter-spacing: 5px; color: #2a4a2a; text-transform: uppercase;
+}
+#timer {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(36px, 7vw, 72px);
+  font-weight: 900;
+  color: var(--green);
+  text-shadow: 0 0 20px var(--green);
+  line-height: 1;
+  transition: color 0.3s, text-shadow 0.3s;
+  letter-spacing: 4px;
+}
+
+#score-box {
+  font-family: 'Orbitron', monospace;
+  font-size: 12px;
+  color: #334433;
+  text-align: right;
+  min-width: 80px;
+}
+#score-val { font-size: 22px; color: var(--green); display: block; }
+
+#wire-label-box {
+  text-align: left;
+  min-width: 80px;
+}
+#wire-hint-label { font-size: 9px; letter-spacing: 3px; color: #334433; text-transform: uppercase; }
+#wire-hint {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+
+/* ── ARENA ── */
+#arena {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Background grid */
+#arena::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(57,255,20,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(57,255,20,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* Bomb body — decorative panel */
+#bomb-panel {
+  position: absolute;
+  width: min(520px, 92vw);
+  height: min(380px, 75vh);
+  border: 1px solid #1a2e1a;
+  background: linear-gradient(160deg, #0c1410 0%, #080b0f 60%, #0a100a 100%);
+  box-shadow:
+    0 0 0 1px #0d1a0d,
+    0 0 60px rgba(0,0,0,0.8),
+    inset 0 0 40px rgba(0,0,0,0.5);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Corner brackets */
+#bomb-panel::before, #bomb-panel::after {
+  content: '';
+  position: absolute;
+  width: 18px; height: 18px;
+  border-color: #2a4a2a;
+  border-style: solid;
+  pointer-events: none;
+}
+#bomb-panel::before { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+#bomb-panel::after  { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+
+/* ── WIRE TRACK ── */
+#wire-track {
+  position: absolute; inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#wire-strip {
+  position: absolute;
+  width: 100%;
+  /* height set by JS */
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  will-change: transform;
+  transition: transform 0.05s linear;
+}
+
+.wire-row {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Wire SVG line */
+.wire-line {
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%; transform: translateY(-50%);
+  height: 12px;
+  border-radius: 6px;
+  transition: box-shadow 0.15s, height 0.15s;
+}
+
+.wire-label {
+  position: absolute;
+  right: 22px;
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  opacity: 0.35;
+  transition: opacity 0.2s;
+}
+
+.wire-connector {
+  position: absolute;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid;
+  background: #0a0f0a;
+  top: 50%; transform: translateY(-50%);
+}
+.wire-connector.left  { left: 16px; }
+.wire-connector.right { right: 16px; }
+
+/* Wire colors */
+.wire-red    .wire-line { background: var(--red);    box-shadow: 0 0 8px var(--red); }
+.wire-blue   .wire-line { background: var(--blue);   box-shadow: 0 0 8px var(--blue); }
+.wire-green  .wire-line { background: var(--green);  box-shadow: 0 0 8px var(--green); }
+.wire-yellow .wire-line { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+.wire-orange .wire-line { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+
+.wire-red    .wire-connector { border-color: var(--red);    background: rgba(255,32,32,0.15); }
+.wire-blue   .wire-connector { border-color: var(--blue);   background: rgba(0,207,255,0.15); }
+.wire-green  .wire-connector { border-color: var(--green);  background: rgba(57,255,20,0.15); }
+.wire-yellow .wire-connector { border-color: var(--yellow); background: rgba(255,225,53,0.15); }
+.wire-orange .wire-connector { border-color: var(--orange); background: rgba(255,123,0,0.15); }
+
+.wire-red    .wire-label { color: var(--red); }
+.wire-blue   .wire-label { color: var(--blue); }
+.wire-green  .wire-label { color: var(--green); }
+.wire-yellow .wire-label { color: var(--yellow); }
+.wire-orange .wire-label { color: var(--orange); }
+
+/* Aligned (near cutter) state */
+.wire-row.near .wire-line   { height: 14px; }
+.wire-row.near .wire-label  { opacity: 0.7; }
+.wire-row.aligned .wire-line   { height: 16px; }
+.wire-row.aligned .wire-label  { opacity: 1; }
+
+/* Correct wire glow when near */
+.wire-row.near.correct .wire-line   { filter: brightness(1.5); }
+.wire-row.aligned.correct .wire-line { filter: brightness(2); }
+
+/* ── CUTTER LINE ── */
+#cutter {
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 15;
+}
+#cutter::before, #cutter::after {
+  content: '';
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  height: 2px;
+  background: var(--cut-line);
+  box-shadow: 0 0 12px rgba(255,255,255,0.6);
+}
+#cutter::before { left: 0; right: calc(50% + 36px); }
+#cutter::after  { right: 0; left: calc(50% + 36px); }
+
+#cutter-icon {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(255,255,255,0.8));
+  animation: cutter-idle 2s ease-in-out infinite;
+}
+@keyframes cutter-idle {
+  0%,100% { transform: translate(-50%, -50%) scale(1) rotate(-5deg); }
+  50%      { transform: translate(-50%, -50%) scale(1.08) rotate(5deg); }
+}
+
+/* Side arrows */
+#scroll-arrows {
+  position: absolute;
+  right: 14px; top: 50%;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column;
+  gap: 6px;
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 20;
+}
+.arr { font-size: 14px; line-height: 1; animation: arr-bounce 1s ease-in-out infinite; }
+.arr:nth-child(1) { animation-delay: 0s; }
+.arr:nth-child(2) { animation-delay: 0.15s; }
+.arr:nth-child(3) { animation-delay: 0.3s; }
+@keyframes arr-bounce {
+  0%,100% { opacity: 0.15; } 50% { opacity: 0.7; }
+}
+
+/* ── BOTTOM BAR ── */
+#bottom-bar {
+  width: 100%;
+  padding: 14px 28px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: rgba(8,11,15,0.95);
+  border-top: 1px solid #111e11;
+  position: relative; z-index: 20;
+}
+
+#cut-btn {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  padding: 14px 40px;
+  background: transparent;
+  border: 2px solid #1a2e1a;
+  color: #2a4a2a;
+  cursor: pointer;
+  text-transform: uppercase;
+  border-radius: 2px;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+  min-width: 200px;
+}
+#cut-btn.ready {
+  border-color: var(--green);
+  color: var(--green);
+  text-shadow: 0 0 10px var(--green);
+  box-shadow: 0 0 20px rgba(57,255,20,0.25), inset 0 0 20px rgba(57,255,20,0.06);
+  animation: cut-pulse 0.8s ease-in-out infinite;
+}
+@keyframes cut-pulse {
+  0%,100% { box-shadow: 0 0 20px rgba(57,255,20,0.25), inset 0 0 20px rgba(57,255,20,0.06); }
+  50%      { box-shadow: 0 0 40px rgba(57,255,20,0.5), inset 0 0 30px rgba(57,255,20,0.12); }
+}
+#cut-btn:active, #cut-btn.pressing {
+  transform: scale(0.96);
+  filter: brightness(1.5);
+}
+
+#cut-progress {
+  position: absolute;
+  bottom: 0; left: 0;
+  height: 3px;
+  width: 0%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  transition: width 0.05s linear;
+}
+
+#btn-hint {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: #2a3a2a;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════════
+   END SCREENS
+══════════════════════════════════ */
+.end-screen {
+  position: fixed; inset: 0; z-index: 90;
+  display: none;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 20px;
+  text-align: center;
+}
+
+/* SUCCESS */
+#success-screen {
+  background: radial-gradient(ellipse at center, #041a04 0%, #000 100%);
+}
+#success-screen .end-icon { font-size: 80px; animation: success-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes success-pop {
+  0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+#success-screen .end-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(28px, 6vw, 60px);
+  font-weight: 900;
+  color: var(--green);
+  text-shadow: 0 0 40px var(--green), 0 0 80px rgba(57,255,20,0.3);
+  letter-spacing: 6px;
+  animation: success-glow 1.5s ease-in-out infinite alternate;
+}
+@keyframes success-glow {
+  from { text-shadow: 0 0 30px var(--green); }
+  to   { text-shadow: 0 0 60px var(--green), 0 0 100px rgba(57,255,20,0.5); }
+}
+.end-stats {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: #4a6a4a;
+}
+.end-stats span { color: var(--green); font-weight: 700; }
+
+/* FAILURE */
+#failure-screen {
+  background: radial-gradient(ellipse at center, #1a0000 0%, #000 100%);
+}
+#failure-screen .end-icon { font-size: 80px; }
+#failure-screen .end-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(48px, 10vw, 100px);
+  font-weight: 900;
+  color: var(--red);
+  text-shadow: 0 0 40px var(--red), 0 0 80px rgba(255,32,32,0.5);
+  letter-spacing: 8px;
+  animation: boom-shake 0.4s ease-in-out;
+}
+@keyframes boom-shake {
+  0%  { transform: translate(0,0) scale(0.5); opacity: 0; }
+  30% { transform: translate(-8px,4px) scale(1.15); opacity: 1; }
+  60% { transform: translate(6px,-3px) scale(0.95); }
+  100%{ transform: translate(0,0) scale(1); }
+}
+.fail-reason {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px;
+  letter-spacing: 4px;
+  color: #6a2a2a;
+  text-transform: uppercase;
+}
+
+.play-again-btn {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  padding: 14px 40px;
+  background: transparent;
+  cursor: pointer;
+  text-transform: uppercase;
+  border-radius: 2px;
+  transition: all 0.2s;
+  margin-top: 10px;
+}
+#success-screen .play-again-btn {
+  border: 2px solid var(--green); color: var(--green);
+  text-shadow: 0 0 8px var(--green);
+}
+#success-screen .play-again-btn:hover { background: rgba(57,255,20,0.08); }
+#failure-screen .play-again-btn {
+  border: 2px solid var(--red); color: var(--red);
+  text-shadow: 0 0 8px var(--red);
+}
+#failure-screen .play-again-btn:hover { background: rgba(255,32,32,0.08); }
+
+/* ── FLASH OVERLAY ── */
+#flash {
+  position: fixed; inset: 0; z-index: 80;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--red);
+}
+
+/* ── SHAKE (applied to body) ── */
+body.shake {
+  animation: body-shake 0.08s linear infinite;
+}
+@keyframes body-shake {
+  0%   { transform: translate(0,0); }
+  25%  { transform: translate(-2px,1px); }
+  50%  { transform: translate(2px,-1px); }
+  75%  { transform: translate(-1px,2px); }
+  100% { transform: translate(0,0); }
+}
+body.shake-hard {
+  animation: body-shake-hard 0.05s linear infinite;
+}
+@keyframes body-shake-hard {
+  0%   { transform: translate(0,0); }
+  25%  { transform: translate(-5px,3px); }
+  50%  { transform: translate(5px,-3px); }
+  75%  { transform: translate(-3px,5px); }
+  100% { transform: translate(0,0); }
+}
+
+/* ── WIPE OUT ANIMATION (cut successful) ── */
+.wire-cut {
+  animation: wire-cut-anim 0.3s ease-in forwards;
+}
+@keyframes wire-cut-anim {
+  0%   { opacity: 1; transform: scaleX(1); }
+  50%  { opacity: 0.5; transform: scaleX(0.95) translateY(3px); }
+  100% { opacity: 0; transform: scaleX(0.8) translateY(8px); }
+}
+</style>
+</head>
+<body>
+
+<canvas id="fx-canvas"></canvas>
+<div id="flash"></div>
+
+<!-- ══ START SCREEN ══ -->
+<div id="start-screen">
+  <div class="start-bomb-icon">💣</div>
+  <div class="start-title">Defuse the Bomb</div>
+  <div class="start-sub">scroll · align · cut · survive</div>
+  <div class="difficulty-row">
+    <button class="diff-btn active" data-diff="easy">Easy · 20s</button>
+    <button class="diff-btn" data-diff="medium">Medium · 12s</button>
+    <button class="diff-btn" data-diff="hard">Hard · 7s</button>
+  </div>
+  <button id="start-btn">▶ Start Mission</button>
+  <div class="start-hint">scroll or drag to move wires</div>
+</div>
+
+<!-- ══ GAME SCREEN ══ -->
+<div id="game-screen">
+  <div id="top-bar">
+    <div id="wire-label-box">
+      <div id="wire-hint-label">Cut wire</div>
+      <div id="wire-hint">???</div>
+    </div>
+    <div id="timer-wrap">
+      <div id="timer-label">TIME REMAINING</div>
+      <div id="timer">20.0</div>
+    </div>
+    <div id="score-box">
+      SCORE<span id="score-val">0</span>
+    </div>
+  </div>
+
+  <div id="arena">
+    <div id="bomb-panel">
+      <div id="wire-track">
+        <div id="wire-strip"></div>
+        <div id="cutter">
+          <div id="cutter-icon">✂</div>
+        </div>
+        <div id="scroll-arrows">
+          <div class="arr">▲</div>
+          <div class="arr">▲</div>
+          <div class="arr">▲</div>
+          <span style="display:block; height:8px;"></span>
+          <div class="arr" style="animation-direction:reverse;">▼</div>
+          <div class="arr" style="animation-direction:reverse;">▼</div>
+          <div class="arr" style="animation-direction:reverse;">▼</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bottom-bar">
+    <div id="btn-hint">align wire then</div>
+    <button id="cut-btn">
+      ✂ Hold to Cut
+      <div id="cut-progress"></div>
+    </button>
+  </div>
+</div>
+
+<!-- ══ SUCCESS SCREEN ══ -->
+<div id="success-screen" class="end-screen">
+  <div class="end-icon">🟢</div>
+  <div class="end-title">DEFUSED</div>
+  <div class="end-stats">Time left: <span id="time-left">—</span> &nbsp;|&nbsp; Score: <span id="final-score">—</span></div>
+  <button class="play-again-btn" onclick="goStart()">▶ Next Mission</button>
+</div>
+
+<!-- ══ FAILURE SCREEN ══ -->
+<div id="failure-screen" class="end-screen">
+  <div class="end-icon" id="fail-icon">💥</div>
+  <div class="end-title">BOOM</div>
+  <div class="fail-reason" id="fail-reason">time expired</div>
+  <div class="end-stats">Score: <span id="fail-score">—</span></div>
+  <button class="play-again-btn" onclick="goStart()">↺ Try Again</button>
+</div>
+
+<!-- GSAP -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════
+   DEFUSE THE BOMB — Game Engine
+   ════════════════════════════════════════════════ */
+
+// ── CONFIG ──────────────────────────────────────
+const DIFFICULTIES = {
+  easy:   { time: 20, wires: 4, holdTime: 600 },
+  medium: { time: 12, wires: 5, holdTime: 500 },
+  hard:   { time: 7,  wires: 5, holdTime: 350 },
+};
+
+const WIRE_DEFS = [
+  { id: 'red',    label: 'RED',    cls: 'wire-red'    },
+  { id: 'blue',   label: 'BLUE',   cls: 'wire-blue'   },
+  { id: 'green',  label: 'GREEN',  cls: 'wire-green'  },
+  { id: 'yellow', label: 'YELLOW', cls: 'wire-yellow' },
+  { id: 'orange', label: 'ORANGE', cls: 'wire-orange' },
+];
+
+const WIRE_HEIGHT = 72; // px per wire row
+const ALIGN_THRESHOLD = 18;  // px — "aligned"
+const NEAR_THRESHOLD  = 40;  // px — "near"
+const HOLD_TIME_MS    = 600; // overridden by difficulty
+
+// ── STATE ────────────────────────────────────────
+let G = {
+  running: false,
+  difficulty: 'easy',
+  timeLeft: 20,
+  score: 0,
+  wires: [],
+  correctWireId: null,
+  stripOffset: 0,      // current Y translate of wire strip (px)
+  targetOffset: 0,     // where we're scrolling to
+  cutProgress: 0,      // 0–1 hold progress
+  cutting: false,
+  cutInterval: null,
+  timerInterval: null,
+  shaking: false,
+  alignedWireId: null,
+};
+
+// ── AUDIO ────────────────────────────────────────
+let audioCtx = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playTick(freq = 880, vol = 0.3) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.frequency.value = freq;
+  o.type = 'square';
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + 0.06);
+}
+
+function playExplosion() {
+  if (!audioCtx) return;
+  // Low rumble burst
+  const bufLen = audioCtx.sampleRate * 1.5;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 0.6);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 200;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(1.5, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.4);
+  src.connect(filter); filter.connect(g); g.connect(audioCtx.destination);
+  src.start();
+  // High crack
+  const o = audioCtx.createOscillator();
+  const og = audioCtx.createGain();
+  o.frequency.setValueAtTime(300, audioCtx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
+  og.gain.setValueAtTime(1, audioCtx.currentTime);
+  og.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+  o.connect(og); og.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + 0.35);
+}
+
+function playSuccess() {
+  if (!audioCtx) return;
+  [523, 659, 784, 1047].forEach((freq, i) => {
+    setTimeout(() => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.35, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + 0.45);
+    }, i * 100);
+  });
+}
+
+function playSnip() {
+  if (!audioCtx) return;
+  [1200, 900].forEach((f, i) => {
+    setTimeout(() => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sawtooth'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.07);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + 0.08);
+    }, i * 40);
+  });
+}
+
+// Ambient tension drone
+let droneNodes = [];
+function startDrone() {
+  stopDrone();
+  if (!audioCtx) return;
+  [55, 110, 82].forEach((freq, i) => {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    const lfo = audioCtx.createOscillator();
+    const lfoG = audioCtx.createGain();
+    lfo.frequency.value = 0.2 + i * 0.07;
+    lfoG.gain.value = 3;
+    lfo.connect(lfoG); lfoG.connect(o.frequency);
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.06 - i * 0.015, audioCtx.currentTime + 2);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); lfo.start();
+    droneNodes.push(o, lfo);
+  });
+}
+function stopDrone() {
+  droneNodes.forEach(n => { try { n.stop(); } catch(e){} });
+  droneNodes = [];
+}
+
+// ── WIRE SETUP ───────────────────────────────────
+function buildWires(count) {
+  const shuffled = [...WIRE_DEFS].sort(() => Math.random() - 0.5).slice(0, count);
+  G.wires = shuffled;
+  G.correctWireId = shuffled[Math.floor(Math.random() * shuffled.length)].id;
+
+  const strip = document.getElementById('wire-strip');
+  strip.innerHTML = '';
+  strip.style.height = (count * WIRE_HEIGHT) + 'px';
+
+  shuffled.forEach(w => {
+    const row = document.createElement('div');
+    row.className = `wire-row ${w.cls}`;
+    row.dataset.wireId = w.id;
+    if (w.id === G.correctWireId) row.classList.add('correct');
+    row.innerHTML = `
+      <div class="wire-connector left"></div>
+      <div class="wire-line"></div>
+      <div class="wire-label">${w.label}</div>
+      <div class="wire-connector right"></div>
+    `;
+    strip.appendChild(row);
+  });
+
+  // Start strip centered so middle wire is at cutter
+  const midIndex = Math.floor(count / 2);
+  G.stripOffset = -midIndex * WIRE_HEIGHT;
+  G.targetOffset = G.stripOffset;
+  applyStripOffset(true);
+}
+
+function applyStripOffset(instant = false) {
+  const strip = document.getElementById('wire-strip');
+  const track = document.getElementById('wire-track');
+  const trackH = track.offsetHeight;
+  const centerY = trackH / 2;
+  // Clamp so wires don't go out of reach
+  const count = G.wires.length;
+  const maxOff = WIRE_HEIGHT * 0.5;
+  const minOff = -(count - 1) * WIRE_HEIGHT - WIRE_HEIGHT * 0.5;
+  G.targetOffset = Math.max(minOff, Math.min(maxOff, G.targetOffset));
+
+  if (instant) {
+    G.stripOffset = G.targetOffset;
+    strip.style.transition = 'none';
+  } else {
+    strip.style.transition = 'transform 0.06s linear';
+  }
+  strip.style.transform = `translateY(calc(${centerY}px + ${G.stripOffset}px - ${WIRE_HEIGHT / 2}px))`;
+  updateAlignment();
+}
+
+// Smooth lerp loop
+let rafId;
+function lerpLoop() {
+  rafId = requestAnimationFrame(lerpLoop);
+  if (!G.running) return;
+  const diff = G.targetOffset - G.stripOffset;
+  if (Math.abs(diff) > 0.3) {
+    G.stripOffset += diff * 0.18;
+    const strip = document.getElementById('wire-strip');
+    const track = document.getElementById('wire-track');
+    const centerY = track.offsetHeight / 2;
+    strip.style.transform = `translateY(calc(${centerY}px + ${G.stripOffset}px - ${WIRE_HEIGHT / 2}px))`;
+    updateAlignment();
+  }
+}
+
+function updateAlignment() {
+  // Calculate which wire is closest to cutter (center)
+  const track = document.getElementById('wire-track');
+  const centerY = track.offsetHeight / 2;
+  let closestWireId = null;
+  let closestDist = Infinity;
+
+  document.querySelectorAll('.wire-row').forEach((row, i) => {
+    // Position of this wire's center relative to track
+    const wireCenter = G.stripOffset + i * WIRE_HEIGHT + WIRE_HEIGHT / 2;
+    const dist = Math.abs(wireCenter); // distance from center (0)
+    row.classList.remove('near', 'aligned');
+    if (dist < closestDist) { closestDist = dist; closestWireId = row.dataset.wireId; }
+    if (dist < NEAR_THRESHOLD)  row.classList.add('near');
+    if (dist < ALIGN_THRESHOLD) row.classList.add('aligned');
+  });
+
+  G.alignedWireId = closestDist < ALIGN_THRESHOLD ? closestWireId : null;
+  updateCutBtn();
+}
+
+function updateCutBtn() {
+  const btn = document.getElementById('cut-btn');
+  if (G.alignedWireId) {
+    btn.classList.add('ready');
+  } else {
+    btn.classList.remove('ready');
+    if (G.cutting) stopCutting();
+  }
+}
+
+// ── TIMER ────────────────────────────────────────
+let lastTickTime = 0;
+function startTimer() {
+  clearInterval(G.timerInterval);
+  const cfg = DIFFICULTIES[G.difficulty];
+  G.timeLeft = cfg.time;
+  renderTimer();
+
+  G.timerInterval = setInterval(() => {
+    G.timeLeft -= 0.1;
+    if (G.timeLeft <= 0) {
+      G.timeLeft = 0;
+      renderTimer();
+      triggerFailure('time expired');
+      return;
+    }
+    renderTimer();
+
+    // Ticking
+    const now = Date.now();
+    const tickInterval = G.timeLeft > 10 ? 1000 : G.timeLeft > 5 ? 500 : 250;
+    if (now - lastTickTime > tickInterval) {
+      lastTickTime = now;
+      playTick(G.timeLeft < 5 ? 1100 : 880, G.timeLeft < 5 ? 0.5 : 0.25);
+    }
+
+    // Visual urgency
+    const timerEl = document.getElementById('timer');
+    if (G.timeLeft <= 5) {
+      timerEl.style.color = 'var(--red)';
+      timerEl.style.textShadow = '0 0 30px var(--red)';
+      if (!document.body.classList.contains('shake')) {
+        document.body.classList.add('shake');
+      }
+    } else if (G.timeLeft <= 10) {
+      timerEl.style.color = 'var(--yellow)';
+      timerEl.style.textShadow = '0 0 20px var(--yellow)';
+    }
+  }, 100);
+}
+
+function renderTimer() {
+  document.getElementById('timer').textContent = Math.max(0, G.timeLeft).toFixed(1);
+}
+
+// ── CUT MECHANIC ────────────────────────────────
+let cutPressStart = 0;
+let cutRAF = null;
+
+function startCutting() {
+  if (!G.alignedWireId || G.cutting || !G.running) return;
+  G.cutting = true;
+  cutPressStart = Date.now();
+  document.getElementById('cut-btn').classList.add('pressing');
+  animateCutProgress();
+}
+
+function animateCutProgress() {
+  const cfg = DIFFICULTIES[G.difficulty];
+  const elapsed = Date.now() - cutPressStart;
+  const progress = Math.min(1, elapsed / cfg.holdTime);
+  G.cutProgress = progress;
+  document.getElementById('cut-progress').style.width = (progress * 100) + '%';
+  if (progress >= 1) {
+    executeCut();
+    return;
+  }
+  cutRAF = requestAnimationFrame(animateCutProgress);
+}
+
+function stopCutting() {
+  G.cutting = false;
+  cancelAnimationFrame(cutRAF);
+  document.getElementById('cut-progress').style.width = '0%';
+  document.getElementById('cut-btn').classList.remove('pressing');
+  G.cutProgress = 0;
+}
+
+function executeCut() {
+  if (!G.running) return;
+  G.running = false;
+  clearInterval(G.timerInterval);
+  stopDrone();
+  document.body.classList.remove('shake', 'shake-hard');
+  document.getElementById('cut-btn').classList.remove('pressing', 'ready');
+  document.getElementById('cut-progress').style.width = '100%';
+
+  playSnip();
+
+  const wireId = G.alignedWireId;
+  // Animate wire cut
+  const row = document.querySelector(`.wire-row[data-wire-id="${wireId}"]`);
+  if (row) row.querySelector('.wire-line').classList.add('wire-cut');
+
+  setTimeout(() => {
+    if (wireId === G.correctWireId) {
+      triggerSuccess();
+    } else {
+      triggerFailure('wrong wire cut');
+    }
+  }, 350);
+}
+
+// ── GAME FLOW ────────────────────────────────────
+function startGame() {
+  initAudio();
+  const cfg = DIFFICULTIES[G.difficulty];
+  G.running = true;
+  G.timeLeft = cfg.time;
+  G.cutProgress = 0;
+  G.cutting = false;
+  G.alignedWireId = null;
+  G.score = G.score || 0;
+
+  buildWires(cfg.wires);
+  startDrone();
+  startTimer();
+  lastTickTime = Date.now();
+
+  // Show hint (correct wire color, but delayed for hard)
+  const correctDef = WIRE_DEFS.find(w => w.id === G.correctWireId);
+  const hintEl = document.getElementById('wire-hint');
+  if (G.difficulty === 'hard') {
+    hintEl.textContent = '???';
+    hintEl.style.color = '#334433';
+    setTimeout(() => {
+      hintEl.textContent = correctDef.label;
+      hintEl.style.color = getWireColor(G.correctWireId);
+      hintEl.style.textShadow = `0 0 10px ${getWireColor(G.correctWireId)}`;
+    }, 2000);
+  } else {
+    hintEl.textContent = correctDef.label;
+    hintEl.style.color = getWireColor(G.correctWireId);
+    hintEl.style.textShadow = `0 0 10px ${getWireColor(G.correctWireId)}`;
+  }
+
+  document.getElementById('score-val').textContent = G.score;
+
+  // Reset timer appearance
+  const timerEl = document.getElementById('timer');
+  timerEl.style.color = 'var(--green)';
+  timerEl.style.textShadow = '0 0 20px var(--green)';
+
+  // Show game — reset opacity in case GSAP left it at 0 from a previous round
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('success-screen').style.display = 'none';
+  document.getElementById('failure-screen').style.display = 'none';
+  const gameScreen = document.getElementById('game-screen');
+  gsap.killTweensOf(gameScreen);          // cancel any lingering GSAP tweens
+  gameScreen.style.opacity = '1';
+  gameScreen.style.display = 'flex';
+
+  cancelAnimationFrame(rafId);
+  lerpLoop();
+}
+
+function getWireColor(id) {
+  const map = { red:'#ff2020', blue:'#00cfff', green:'#39ff14', yellow:'#ffe135', orange:'#ff7b00' };
+  return map[id] || '#fff';
+}
+
+function triggerSuccess() {
+  G.running = false;
+  clearInterval(G.timerInterval);
+  stopDrone();
+  playSuccess();
+  document.body.classList.remove('shake', 'shake-hard');
+
+  // Score: time left * difficulty multiplier
+  const mult = G.difficulty === 'easy' ? 100 : G.difficulty === 'medium' ? 200 : 400;
+  const earned = Math.round(G.timeLeft * mult);
+  G.score += earned;
+
+  flashScreen('var(--green)', 0.25);
+  gsap.fromTo('#game-screen', { opacity: 1 }, { opacity: 0, duration: 0.5, delay: 0.3 });
+
+  setTimeout(() => {
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('time-left').textContent = G.timeLeft.toFixed(1) + 's';
+    document.getElementById('final-score').textContent = G.score;
+    const ss = document.getElementById('success-screen');
+    ss.style.display = 'flex';
+    gsap.fromTo(ss, { opacity: 0 }, { opacity: 1, duration: 0.6 });
+  }, 800);
+}
+
+function triggerFailure(reason = 'time expired') {
+  if (!G.running && G.timeLeft > 0) return; // already handled
+  G.running = false;
+  clearInterval(G.timerInterval);
+  stopDrone();
+  document.body.classList.remove('shake', 'shake-hard');
+  stopCutting();
+
+  playExplosion();
+  triggerExplosionVFX();
+  document.body.classList.add('shake-hard');
+  flashScreen('var(--red)', 0.8);
+
+  // Vibration API
+  if (navigator.vibrate) navigator.vibrate([100, 50, 200, 50, 400]);
+
+  setTimeout(() => document.body.classList.remove('shake-hard'), 600);
+
+  setTimeout(() => {
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('fail-reason').textContent = reason;
+    document.getElementById('fail-score').textContent = G.score;
+    const fs = document.getElementById('failure-screen');
+    fs.style.display = 'flex';
+    gsap.fromTo(fs, { opacity: 0 }, { opacity: 1, duration: 0.4 });
+  }, 900);
+}
+
+function goStart() {
+  cancelAnimationFrame(rafId);
+  clearInterval(G.timerInterval);
+  stopDrone();
+  document.body.classList.remove('shake', 'shake-hard');
+  G.running = false;
+  particles = [];                                      // clear any leftover explosion particles
+  fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+
+  document.getElementById('success-screen').style.display = 'none';
+  document.getElementById('failure-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'none';
+
+  const ss = document.getElementById('start-screen');
+  ss.style.display = 'flex';
+  ss.style.opacity = 1;
+  gsap.fromTo(ss, { opacity: 0 }, { opacity: 1, duration: 0.5 });
+}
+
+// ── VFX ──────────────────────────────────────────
+function flashScreen(color, alpha) {
+  const f = document.getElementById('flash');
+  f.style.background = color;
+  gsap.fromTo(f, { opacity: alpha }, { opacity: 0, duration: 0.6, ease: 'power2.out' });
+}
+
+// Particle explosion
+const fxCanvas = document.getElementById('fx-canvas');
+const fxCtx = fxCanvas.getContext('2d');
+let particles = [];
+let fxRafId = null; // guard — only one fxLoop running at a time
+
+function resizeFX() {
+  fxCanvas.width = window.innerWidth;
+  fxCanvas.height = window.innerHeight;
+}
+resizeFX();
+window.addEventListener('resize', resizeFX);
+
+function triggerExplosionVFX() {
+  const cx = fxCanvas.width / 2;
+  const cy = fxCanvas.height / 2;
+  for (let i = 0; i < 120; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 3 + Math.random() * 12;
+    const colors = ['#ff2020','#ff7b00','#ffe135','#ffffff','#ff5500'];
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - Math.random() * 4,
+      life: 1,
+      decay: 0.015 + Math.random() * 0.02,
+      size: 3 + Math.random() * 8,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
+  }
+  // Only start the loop if it isn't already running
+  if (!fxRafId) fxLoop();
+}
+
+function fxLoop() {
+  fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+  particles = particles.filter(p => p.life > 0);
+
+  if (!particles.length) {
+    // All done — clear canvas and stop scheduling
+    fxRafId = null;
+    return;
+  }
+
+  for (const p of particles) {
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.25; // gravity
+    p.vx *= 0.97;
+    p.life -= p.decay;
+    fxCtx.globalAlpha = Math.max(0, p.life);
+    fxCtx.fillStyle = p.color;
+    fxCtx.shadowBlur = 8; fxCtx.shadowColor = p.color;
+    fxCtx.beginPath();
+    fxCtx.arc(p.x, p.y, Math.max(0.01, p.size * p.life), 0, Math.PI * 2);
+    fxCtx.fill();
+  }
+  fxCtx.globalAlpha = 1; fxCtx.shadowBlur = 0;
+  fxRafId = requestAnimationFrame(fxLoop);
+}
+
+// ── SCROLL / DRAG INPUT ──────────────────────────
+// Mouse wheel
+window.addEventListener('wheel', e => {
+  if (!G.running) return;
+  e.preventDefault();
+  G.targetOffset -= e.deltaY * 0.6;
+}, { passive: false });
+
+// Touch drag
+let touchStartY = 0, lastTouchY = 0;
+window.addEventListener('touchstart', e => {
+  touchStartY = e.touches[0].clientY;
+  lastTouchY = touchStartY;
+}, { passive: true });
+
+window.addEventListener('touchmove', e => {
+  if (!G.running) return;
+  const dy = e.touches[0].clientY - lastTouchY;
+  lastTouchY = e.touches[0].clientY;
+  G.targetOffset += dy * 1.1;
+}, { passive: true });
+
+// Keyboard arrow keys
+window.addEventListener('keydown', e => {
+  if (!G.running) return;
+  if (e.key === 'ArrowDown' || e.key === 's') G.targetOffset -= 30;
+  if (e.key === 'ArrowUp'   || e.key === 'w') G.targetOffset += 30;
+  if (e.code === 'Space') { e.preventDefault(); startCutting(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') stopCutting();
+});
+
+// ── CUT BUTTON ───────────────────────────────────
+const cutBtn = document.getElementById('cut-btn');
+cutBtn.addEventListener('mousedown',  startCutting);
+cutBtn.addEventListener('touchstart', e => { e.preventDefault(); startCutting(); }, { passive: false });
+window.addEventListener('mouseup',  stopCutting);
+window.addEventListener('touchend', stopCutting);
+
+// ── DIFFICULTY SELECTION ─────────────────────────
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    G.difficulty = btn.dataset.diff;
+  });
+});
+
+// ── START BUTTON ─────────────────────────────────
+document.getElementById('start-btn').addEventListener('click', () => {
+  G.score = 0;
+  startGame();
+});
+
+// ── INIT ─────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (G.running) applyStripOffset(true);
+});
+</script>
+</body>
+</html>
